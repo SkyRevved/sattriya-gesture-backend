@@ -9,7 +9,7 @@ from io import BytesIO
 app = Flask(__name__)
 
 # Load your trained model (adjust the path if needed)
-model = load_model("model/resnet50_transfer_learning_model.h5")
+model = load_model("model/mobilenetv2_model.h5")
 
 # Define class labels (adjust to your classes)
 class_labels = ['Bardhaman', 'Dol', 'Gajadanta', 'Kaput', 'Karkat', 'Makar1', 'Makar2', 'Samput']
