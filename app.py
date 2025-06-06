@@ -1,52 +1,55 @@
 from flask import Flask, request, jsonify
-from flask_cors import CORS
+import os
 import tensorflow as tf
 from tensorflow.keras.models import load_model
-from tensorflow.keras.applications.resnet50 import preprocess_input
-from PIL import Image
+from tensorflow.keras.preprocessing import image
 import numpy as np
-import io
 
-# Initialize Flask app
 app = Flask(__name__)
-CORS(app)
 
-# Load your model
-model = load_model("model/resnet50_transfer_learning_model.h5")  # Make sure this relative path is correct
+# Load your trained model (adjust the path if needed)
+model = load_model("model/resnet50_transfer_learning_model.h5")
 
-# Preprocessing function
-def prepare_image(image_bytes):
-    img = Image.open(io.BytesIO(image_bytes)).convert('RGB')
-    img = img.resize((224, 224))
-    img_array = np.array(img)
-    img_array = preprocess_input(img_array)
-    return np.expand_dims(img_array, axis=0)
+# Define class labels (adjust to your classes)
+class_labels = ['Bardhaman', 'Dol', 'Gajadanta', 'Kaput', 'Karkat', 'Makar1', 'Makar2', 'Samput']
 
-# Define prediction endpoint
+@app.route('/')
+def home():
+    return "Sattriya Gesture Recognition API is running."
+
 @app.route('/predict', methods=['POST'])
 def predict():
     if 'file' not in request.files:
-        return jsonify({'error': 'No file uploaded'}), 400
-
+        return jsonify({'error': 'No file part in the request'}), 400
+    
     file = request.files['file']
     if file.filename == '':
-        return jsonify({'error': 'Empty filename'}), 400
+        return jsonify({'error': 'No file selected for uploading'}), 400
+    
+    # Preprocess image
+    img = image.load_img(file, target_size=(224, 224))
+    img_array = image.img_to_array(img)
+    img_array = np.expand_dims(img_array, axis=0)
+    
+    # Use same preprocessing as training
+    from tensorflow.keras.applications.resnet50 import preprocess_input
+    img_array = preprocess_input(img_array)
+    
+    # Predict
+    preds = model.predict(img_array)
+    preds = preds[0]
+    
+    # Since you used sigmoid activation, you might have multi-label classification; adjust accordingly
+    # Here, I'm assuming single-label classification; pick the class with max confidence
+    max_index = np.argmax(preds)
+    confidence = float(preds[max_index])
+    predicted_class = class_labels[max_index]
+    
+    return jsonify({
+        'predicted_class': predicted_class,
+        'confidence': confidence
+    })
 
-    try:
-        img_data = file.read()
-        preprocessed_image = prepare_image(img_data)
-        preds = model.predict(preprocessed_image)[0]
-        predicted_class = int(np.argmax(preds))
-        confidence = float(np.max(preds))
-
-        return jsonify({
-            'predicted_class': predicted_class,
-            'confidence': round(confidence * 100, 2)
-        })
-
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-# Local dev mode
 if __name__ == '__main__':
-    app.run(debug=True)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host='0.0.0.0', port=port)
