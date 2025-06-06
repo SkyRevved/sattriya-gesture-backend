@@ -4,6 +4,7 @@ import tensorflow as tf
 from tensorflow.keras.models import load_model
 from tensorflow.keras.preprocessing import image
 import numpy as np
+from io import BytesIO
 
 app = Flask(__name__)
 
@@ -26,12 +27,16 @@ def predict():
     if file.filename == '':
         return jsonify({'error': 'No file selected for uploading'}), 400
     
-    # Preprocess image
-    img = image.load_img(file, target_size=(224, 224))
+    # Read the file content as bytes and load it as an image
+    img = image.load_img(BytesIO(file.read()), target_size=(224, 224))
+    
+    # Optional: reset the file pointer if you need to read the file again later
+    file.seek(0)
+    
+    # Convert image to array and preprocess
     img_array = image.img_to_array(img)
     img_array = np.expand_dims(img_array, axis=0)
     
-    # Use same preprocessing as training
     from tensorflow.keras.applications.resnet50 import preprocess_input
     img_array = preprocess_input(img_array)
     
@@ -39,8 +44,6 @@ def predict():
     preds = model.predict(img_array)
     preds = preds[0]
     
-    # Since you used sigmoid activation, you might have multi-label classification; adjust accordingly
-    # Here, I'm assuming single-label classification; pick the class with max confidence
     max_index = np.argmax(preds)
     confidence = float(preds[max_index])
     predicted_class = class_labels[max_index]
